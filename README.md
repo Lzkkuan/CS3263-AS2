@@ -34,3 +34,9 @@ You are encouraged to discuss solution ideas. However, each team *must write up 
         |── Assignment2.ipynb
         └── programming.py
     ```
+
+
+# TODO: 
+- Check Implementation of Que 1 and 2
+- Check function declaration of Query_llm (only three argument in current template but five used in plan())
+- update and clean up everything to submit

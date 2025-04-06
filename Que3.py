@@ -20,7 +20,7 @@ client = OpenAI(
 
 
 class LLM_Model:
-    def __init__(self, device, instruction, goal_state, initial_conditions, model = "meta-llama/llama-2-13b-chat"):
+    def __init__(self, device, instruction, goal_state, initial_conditions, model = 'gpt-3.5-turbo'):
         self.device = device
         self.model = model
         self.sampling_params = \
