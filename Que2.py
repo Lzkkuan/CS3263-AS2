@@ -49,29 +49,40 @@ class mdp_solver_q_learning:
             env.reset()
             state = env.state_to_index(env.state)
             done = False
-            total_reward = 0
             
             while not done:
                 
-                # ------- your code starts here ----- #
+                if episode == 0:
+                    Q_prev = Q.copy()
+                if 'total_reward' not in locals():
+                    total_reward = 0
+
                 action_idx = self.epsilon_greedy(Q, state, epsilon)
                 action = env.index_to_action(action_idx)
-                next_state, reward, done, _, _ = env.step(action)
+                _, reward, done, _, _ = env.step(action)
                 next_state_idx = env.state_to_index(env.get_state)
-                
+
                 best_next_action = np.argmax(Q[next_state_idx])
                 Q[state][action_idx] += alpha * (reward + gamma * Q[next_state_idx][best_next_action] - Q[state][action_idx])
-                
-                state = next_state_idx
-                total_reward += reward  # ← Fix 1: accumulate reward
-                
-                # ------- your code ends here ------- #
-            rewards.append(total_reward)  # ← Fix 1: append total, not final reward
 
-            # Early stopping if Q-values have converged
-            if episode > 0 and np.max(np.abs(Q - Q_prev)) < theta:
-                break
-            Q_prev = Q.copy()
+                state = next_state_idx
+
+                # Accumulate rewards in the current episode
+                if len(rewards) <= episode:
+                    rewards.append(reward)
+                else:
+                    rewards[episode] += reward
+
+                # Check for convergence after the episode ends
+                if done:
+                    if episode > 0 and np.max(np.abs(Q - Q_prev)) < theta:
+                        rewards = rewards[:episode+1]  # truncate to valid episodes
+                        done = True
+                        raise StopIteration  # force exit from outer loop
+                    Q_prev = Q.copy()
+                    total_reward = 0
+
+                    
         return np.argmax(Q, axis=1), rewards
     
 
