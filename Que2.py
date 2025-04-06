@@ -1,8 +1,5 @@
 import numpy as np
 
-# from typing import Callable
-# from minihouse.minihousemodel import state_class, item_object
-
 from minihouse.robotminihousemodel import MiniHouseV1
 from minihouse.minihousev1 import test_cases
 
@@ -52,14 +49,29 @@ class mdp_solver_q_learning:
             env.reset()
             state = env.state_to_index(env.state)
             done = False
+            total_reward = 0
             
             while not done:
                 
                 # ------- your code starts here ----- #
-
+                action_idx = self.epsilon_greedy(Q, state, epsilon)
+                action = env.index_to_action(action_idx)
+                next_state, reward, done, _, _ = env.step(action)
+                next_state_idx = env.state_to_index(env.get_state)
+                
+                best_next_action = np.argmax(Q[next_state_idx])
+                Q[state][action_idx] += alpha * (reward + gamma * Q[next_state_idx][best_next_action] - Q[state][action_idx])
+                
+                state = next_state_idx
+                total_reward += reward  # ← Fix 1: accumulate reward
                 
                 # ------- your code ends here ------- #
+            rewards.append(total_reward)  # ← Fix 1: append total, not final reward
 
+            # Early stopping if Q-values have converged
+            if episode > 0 and np.max(np.abs(Q - Q_prev)) < theta:
+                break
+            Q_prev = Q.copy()
         return np.argmax(Q, axis=1), rewards
     
 
