@@ -1,13 +1,6 @@
 """
 Assignment 2 programming script.
 
-* Group Member 1:
-    - Name:
-    - Student ID:
-
-* Group Member 2:
-    - Name:
-    - Student ID:
 """
 
 
@@ -39,7 +32,7 @@ def get_action_value(
 
         # ------- your code starts here ----- #
 
-        
+        value += prob * (reward + gamma * V[next_state])
 
         # ------- your code ends here ------- #
 
@@ -70,7 +63,10 @@ def get_max_action_value(
 
         # ------- your code starts here ----- #
 
-        
+        value = self.get_action_value(s, a, V, gamma, env_transition)
+        if value > max_value:
+            max_value = value
+            max_action = a
 
         # ------- your code ends here ------- #
 
@@ -99,9 +95,10 @@ def get_policy(
         for a in range(env_nA):
 
             # ------- your code starts here ----- #
-
-            
-
+            value = self.get_action_value(s, a, V, gamma, env_transition)
+            if value > max_value:
+                max_value = value
+                max_action = a
             # ------- your code ends here ------- #
 
         policy[s] = max_action
@@ -130,9 +127,11 @@ def policy_evaluation(
         for s in range(env_nS):
 
             # ------- your code starts here ----- #
-
-            
-
+            v = 0
+            for prob, next_state, reward, done in env_transition(s, policy[s]):
+                v += prob * (reward + gamma * V[next_state])
+            delta = max(delta, abs(V[s] - v))
+            V[s] = v
             # ------- your code ends here ------- #
 
         if delta < theta:
@@ -162,9 +161,17 @@ def policy_improvement(
     for s in range(env_nS):
 
         # ------- your code starts here ----- #
-
-        
-
+        old_action = policy[s]
+        max_value = -np.inf
+        best_action = -1
+        for a in range(env_nA):
+            value = self.get_action_value(s, a, V, gamma, env_transition)
+            if value > max_value:
+                max_value = value
+                best_action = a
+        policy[s] = best_action
+        if old_action != best_action:
+            policy_stable = False
         # ------- your code ends here ------- #
 
     return policy_stable, policy
@@ -193,9 +200,16 @@ def value_iteration(
         delta = 0
 
         # ------- your code starts here ----- #
-
-        
-
+        for s in range(env_nS):
+            max_value = -np.inf
+            for a in range(env_nA):
+                value = self.get_action_value(s, a, V, gamma, env_transition)
+                if value > max_value:
+                    max_value = value
+            delta = max(delta, abs(V[s] - max_value))
+            V[s] = max_value
+        if delta < theta:
+            converged = True
         # ------- your code ends here ------- #
 
     policy = self.get_policy(env_nS, env_nA, env_transition, gamma, V)
@@ -225,9 +239,11 @@ def policy_iteration(
     while not converged:
 
         # ------- your code starts here ----- #
-
-        
-
+        while not converged:
+            V = self.policy_evaluation(env_nS, env_transition, V, gamma, theta, policy)
+            policy_stable, policy = self.policy_improvement(env_nS, env_nA, env_transition, policy, V, gamma)
+            if policy_stable:
+                converged = True
         # ------- your code ends here ------- #
 
     return policy, V
@@ -240,17 +256,13 @@ def epsilon_greedy(self, Q, state, epsilon):
     if np.random.rand() < epsilon:
 
         # ------- your code starts here ----- #
-
-        
-
+        return np.random.choice(Q.shape[1]) 
         # ------- your code ends here ------- #
 
     else:
 
         # ------- your code starts here ----- #
-
-        
-
+        return np.argmax(Q[state])    
         # ------- your code ends here ------- #
 
 
@@ -281,9 +293,35 @@ def Q_learning(
         while not done:
 
             # ------- your code starts here ----- #
+            if episode == 0:
+                Q_prev = Q.copy()
+            if 'total_reward' not in locals():
+                total_reward = 0
 
-            
+            action_idx = self.epsilon_greedy(Q, state, epsilon)
+            action = env.index_to_action(action_idx)
+            _, reward, done, _, _ = env.step(action)
+            next_state_idx = env.state_to_index(env.get_state)
 
+            best_next_action = np.argmax(Q[next_state_idx])
+            Q[state][action_idx] += alpha * (reward + gamma * Q[next_state_idx][best_next_action] - Q[state][action_idx])
+
+            state = next_state_idx
+
+            # Accumulate rewards in the current episode
+            if len(rewards) <= episode:
+                rewards.append(reward)
+            else:
+                rewards[episode] += reward
+
+            # Check for convergence after the episode ends
+            if done:
+                if episode > 0 and np.max(np.abs(Q - Q_prev)) < theta:
+                    rewards = rewards[:episode+1]  # truncate to valid episodes
+                    done = True
+                    raise StopIteration  # force exit from outer loop
+                Q_prev = Q.copy()
+                total_reward = 0
             # ------- your code ends here ------- #
 
     return np.argmax(Q, axis=1), rewards
@@ -293,8 +331,8 @@ def Q_learning(
 
 # ------- your code starts here ----- #
 client = OpenAI(
-    base_url = "",
-    api_key = "Your api key"
+    base_url = "https://openrouter.ai/api/v1",
+    api_key = "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"
 )
 # ------- your code ends here ------- #
 
@@ -359,7 +397,7 @@ The generated action must be strictly from **GROUNDED_ACTION_LIST**."""
         # [action, index]
         return best_action
     
-    def query_llm(self, task, observe = None):
+    def query_llm(self, task, observe = None, prompt = None, env_condition = None):
         prompt_content = self.prompt_begin
         task = 'Scene: ' + "\n".join(f"{a}:{b}" for a, b in zip(self.condition_list, self.initial_conditions) if a != 'ACTION_DICT') + '\nCurrent State: ' + observe + 'Task: ' + task
 
@@ -370,9 +408,17 @@ The generated action must be strictly from **GROUNDED_ACTION_LIST**."""
                 
                 # ------- your code starts here ----- #
                 
-                
-                
-                
+                response = client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": self.prompt_begin},
+                        {"role": "user", "content": task}
+                    ],
+                    **self.sampling_params
+                )
+
+                # Extract the message content
+                generated_samples.append(response.choices[0].message.content.strip())
                 # ------- your code ends here ------- #
                 
             except Exception as e:
@@ -386,15 +432,17 @@ def describe_state(state):
     describe = ''
 
     # ------- your code starts here ----- #
-    
-    
-    
-    
-    
-    
-    
+    describe = f"The robot is currently in the {state.robot_agent.position}.\n"
+
+    for obj_name, obj in state.object_dict.items():
+        describe += f"The {obj_name} is located at {obj.position}.\n"
+
+    for container_name, container in state.container_dict.items():
+        describe += f"The {container_name} is {'open' if container.is_open else 'closed'}.\n"
+
+    for surface_name, surface in state.surface_dict.items():
+        describe += f"The {surface_name} is in the {surface.position}.\n"
     # ------- your code ends here ------- #
-    
     
     print(describe)
     return describe
@@ -404,13 +452,11 @@ def test_q_learning_with_llm(Q_bool=False, index=0, num_episodes=1000, verbose=F
     instruction, goal_state, initial_conditions = test_cases[index]
     
     # ------- your code starts here ----- #
-
     llm_model = LLM_Model(device = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
                           instruction=instruction,
                           goal_state=goal_state,
                           initial_conditions=initial_conditions, 
-                          model = '')
-
+                          model = "meta-llama/llama-2-13b-chat")
     # ------- your code ends here ------- #
 
     
